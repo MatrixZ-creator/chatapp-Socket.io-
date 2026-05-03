@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Simple Chat Interface</title>
+    
+    <style>
+      :root {
+        color-scheme: dark;
+      }
+
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+
+      body {
+        min-height: 100vh;
+        font-family: Arial, sans-serif;
+        background: #0f172a;
+        color: #e2e8f0;
+        display: grid;
+        place-items: center;
+        padding: 24px;
+      }
+
+      .chat-card {
+        width: min(100%, 720px);
+        height: min(85vh, 640px);
+        background: #111827;
+        border: 1px solid #334155;
+        border-radius: 14px;
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+      }
+
+      .chat-header {
+        padding: 14px 18px;
+        border-bottom: 1px solid #334155;
+        font-size: 1rem;
+        font-weight: 700;
+        background: #1e293b;
+      }
+
+      .chat-body {
+        flex: 1;
+        padding: 16px;
+        overflow-y: auto;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+      }
+
+      .message {
+        max-width: 80%;
+        padding: 10px 12px;
+        border-radius: 12px;
+        line-height: 1.35;
+        word-wrap: break-word;
+      }
+
+      .message.user {
+        align-self: flex-end;
+        background: #2563eb;
+        color: #ffffff;
+      }
+
+      .message.bot {
+        align-self: flex-start;
+        background: #334155;
+      }
+
+      .chat-input {
+        border-top: 1px solid #334155;
+        padding: 12px;
+        display: flex;
+        gap: 10px;
+        background: #1e293b;
+      }
+
+      .chat-input input {
+        flex: 1;
+        border: 1px solid #475569;
+        border-radius: 10px;
+        padding: 10px 12px;
+        background: #0f172a;
+        color: #f8fafc;
+        outline: none;
+      }
+
+      .chat-input input:focus {
+        border-color: #60a5fa;
+      }
+
+      .chat-input button {
+        border: none;
+        border-radius: 10px;
+        padding: 10px 16px;
+        background: #22c55e;
+        color: #062e14;
+        font-weight: 700;
+        cursor: pointer;
+      }
+
+      .chat-input button:hover {
+        filter: brightness(1.05);
+      }
+    </style>
+    
+    
+  </head>
+  <body>
+
+    <section class="chat-card">
+      <header class="chat-header">Simple Chat</header>
+
+      <main id="chatBody" class="chat-body">
+        <div class="message bot">Hi! Type a message and press send.</div>
+        <div id="typingIndicator" style="display:none; padding:10px; color:gray;">
+  Someone is typing...
+</div>
+      </main>
+
+      <form id="chatForm" class="chat-input">
+        <input
+          id="messageInput"
+          type="text"
+          placeholder="Write a message..."
+          autocomplete="off"
+        />
+        <button type="submit">Send</button>
+      </form>
+    </section>
+    <script src="/socket.io/socket.io.js"></script>
+
+    <script>
+      const socket = io();
+      socket.on('server:message',(data)=>{
+        console.log('message from server',data)
+        if(data.text){
+            addMessage(data.text,'bot')
+        }
+      })
+      const typingIndicator = document.getElementById("typingIndicator");
+      socket.on('server:typing',()=>{
+        typingIndicator.style.display = "block";
+
+  clearTimeout(typingTimeout);
+  typingTimeout = setTimeout(() => {
+    typingIndicator.style.display = "none";
+  }, 1000);
+      })
+      const chatBody = document.getElementById("chatBody");
+      const chatForm = document.getElementById("chatForm");
+      const messageInput = document.getElementById("messageInput");
+      let messageInputHandler = null;
+      let typingTimeout = null;
+
+      function addMessage(text, type) {
+        const message = document.createElement("div");
+        message.className = `message ${type}`;
+        message.textContent = text;
+        chatBody.appendChild(message);
+        chatBody.scrollTop = chatBody.scrollHeight;
+      }
+
+      function setMessageInputHandler(handlerFunction) {
+        if (typeof handlerFunction !== "function") {
+          throw new Error("Handler must be a function");
+        }
+        messageInputHandler = handlerFunction;
+      }
+
+      function onMessageInput(message) {
+        console.log({ message });
+        socket.emit('user:message', { text: message });
+      }
+
+      function sendTypingEvent() {
+        const text = messageInput.value;
+        socket.emit('user:typing', { text });
+      }
+
+      function debounceTyping(fn, delay) {
+        return function () {
+          clearTimeout(typingTimeout);
+          typingTimeout = setTimeout(fn, delay);
+        };
+      }
+
+      const debouncedTyping = debounceTyping(sendTypingEvent, 250);
+
+      messageInput.addEventListener('input', function () {
+        if (messageInput.value.trim().length === 0) {
+          return;
+        }
+        debouncedTyping();
+      });
+
+      chatForm.addEventListener("submit", function (event) {
+        event.preventDefault();
+        const text = messageInput.value.trim();
+
+        if (!text) return;
+
+        addMessage(text, "user");
+        messageInput.value = "";
+        onMessageInput(text);
+      });
+
+      // Example:
+      // setMessageInputHandler(function (message) {
+      //   console.log("User typed:", message);
+      // });
+    </script>
+  </body>
+</html>
